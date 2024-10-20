@@ -187,7 +187,7 @@ pip install -r requirements.txt
 
 ## Contact
 
-For questions or feedback, feel free to reach out at [your.email@example.com](mailto:your.email@example.com).
+For questions or feedback, feel free to reach out at [2201512@sit.singaporetech.edu.sg](mailto:2201512@sit.singaporetech.edu.sg).
 
 --- 
 
