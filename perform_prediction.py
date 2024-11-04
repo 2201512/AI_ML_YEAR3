@@ -1,0 +1,131 @@
+import os
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import argparse
+from scipy.stats import shapiro, kstest, norm, probplot, chi2_contingency
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import OneHotEncoder, PolynomialFeatures, StandardScaler
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn import neural_network
+from sklearn.neural_network import MLPClassifier
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier, GradientBoostingClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC, LinearSVC
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
+from sklearn.linear_model import LogisticRegression, Ridge, Perceptron, SGDClassifier
+from sklearn.model_selection import cross_val_score, StratifiedShuffleSplit
+from sklearn.metrics import accuracy_score, log_loss, mean_squared_error,confusion_matrix, precision_score, recall_score, auc,roc_curve, roc_auc_score, f1_score
+import joblib
+
+def select_testing_file(input_folder):
+    files = [f for f in os.listdir(input_folder) if f.endswith('.csv')]
+    if not files:
+        print("No CSV files found in the testing_data folder.")
+        return None
+    print("Available files for testing:")
+    for idx, file in enumerate(files, 1):
+        print(f"{idx}: {file}")
+    choice = int(input("Select the file number to test the model on: ")) - 1
+    return os.path.join(input_folder, files[choice])
+
+def load_data(file_path):
+    data = pd.read_csv(file_path)
+    # target_col = input("Enter the target column (label) for testing, e.g. Survived: ")
+    target_col = "Survived"
+    X_test = data.drop(columns=[target_col])  
+    y_test = data[target_col]  
+    return X_test, y_test
+
+def load_models(model_folder):
+    models = {}
+    for model_file in os.listdir(model_folder):
+        if model_file.endswith('.pkl'):
+            model_path = os.path.join(model_folder, model_file)
+            model_name = model_file.split('_model.pkl')[0]
+            models[model_name] = joblib.load(model_path)
+    return models
+
+def preprocess_test_data(X_test, training_features):
+    # Add missing columns with zero values and drop extra columns
+    for col in training_features:
+        if col not in X_test.columns:
+            X_test[col] = 0
+    X_test = X_test[training_features]
+    return X_test
+
+def evaluate_model(model, X_test, y_test):
+    y_pred = model.predict(X_test)
+    metrics = {
+        'accuracy': accuracy_score(y_test, y_pred),
+        'precision': precision_score(y_test, y_pred, zero_division=0),
+        'recall': recall_score(y_test, y_pred, zero_division=0),
+        'f1_score': f1_score(y_test, y_pred, zero_division=0),
+        'roc_auc': roc_auc_score(y_test, y_pred) if len(set(y_test)) > 1 else 'N/A',
+        'confusion_matrix': confusion_matrix(y_test, y_pred).tolist()
+    }
+    return metrics
+
+def main(input_folder, model_folder, output_folder):
+
+
+    # Select test data file
+    test_file = select_testing_file(input_folder)
+    if not test_file:
+        return
+
+    # Load test data
+    X_test, y_test = load_data(test_file)
+
+    # Load models
+    models = load_models(model_folder)
+    if not models:
+        print("No models found in model_outputs folder.")
+        return
+
+    # Try to extract training features from a model pipeline
+    training_features = None
+    for model in models.values():
+        try:
+            # Attempt to retrieve feature names if they exist
+            training_features = model.named_steps['model'].feature_names_in_
+            break
+        except AttributeError:
+            continue
+
+    # If feature_names_in_ is unavailable, use the columns from the cleaned data as a fallback
+    if training_features is None:
+        print("Using test data columns as a fallback for features (should not matter if training and testing dataset are cleaned with clean_data.py).")
+        training_features = X_test.columns
+
+    # Preprocess test data to match training features
+    X_test = preprocess_test_data(X_test, training_features)
+    # X_test = preprocess_test_data(X_test, encoder)
+
+
+    # Evaluate each model and save metrics
+    report = []
+    for model_name, model in models.items():
+        metrics = evaluate_model(model, X_test, y_test)
+        report.append((model_name, metrics))
+        print(f"Model: {model_name} - Metrics: {metrics}")
+
+    # Save report
+    report_path = os.path.join(output_folder, 'prediction_report.csv')
+    report_df = pd.DataFrame([{**{'Model': m}, **{k: (v if k != 'confusion_matrix' else str(v)) for k, v in metrics.items()}} for m, metrics in report])
+    report_df.to_csv(report_path, index=False)
+    print(f"Prediction report with confusion matrices saved to {report_path}")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Perform predictions using trained models.")
+    parser.add_argument('--input_folder', type=str, default="cleaned_data", help="Path to the testing data folder.")
+    parser.add_argument('--model_folder', type=str, default="model_outputs", help="Path to the trained models folder.")
+    parser.add_argument('--output_folder', type=str, default="predict_outputs", help="Path to save the prediction report.")
+    args = parser.parse_args()
+
+    main(args.input_folder, args.model_folder, args.output_folder)
+

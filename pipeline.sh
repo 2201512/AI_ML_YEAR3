@@ -7,8 +7,12 @@ while true; do
     echo "2. Test on Available Validation Dataset"
     echo "3. Test on New/Random Dataset"
     echo "4. Exit"
-
-    read -p "Enter your choice (1/2/3/4): " choice
+    echo "t. Test eda"
+    echo "c. Clean data"
+    echo "e. Perform EDA on training data"
+    echo "m. Train model"
+    echo "p. Predict model"
+    read -p "Enter your choice (1/2/3/4/t/c/e/m/p): " choice
 
     if [[ "$choice" == "1" ]]; then
         echo "Training the model..."
@@ -51,6 +55,22 @@ while true; do
     elif [[ "$choice" == "4" ]]; then
         echo "Exiting the pipeline..."
         exit 0
+
+    elif [[ "$choice" == "t" ]]; then
+        echo "Testing eda..."
+        python3 q3.py --data MS_1_Scenario_train.csv --output eda_outputs
+    elif [[ "$choice" == "c" ]]; then
+        echo "Listing files in 'training_data' folder, please select one to clean:"
+        python3 clean_data.py --input_folder training_data --output_folder cleaned_data
+    elif [[ "$choice" == "e" ]]; then
+        echo "Performing EDA on training data..."
+        python3 perform_eda.py --input_folder cleaned_data --output eda_outputs
+    elif [[ "$choice" == "m" ]]; then
+        echo "Training model..."
+        python3 model_training.py --input_folder cleaned_data --model_output model_outputs
+    elif [[ "$choice" == "p" ]]; then
+        echo "Predicting model..."
+        python3 perform_prediction.py --input_folder cleaned_data --model_folder model_outputs --output_folder predict_outputs
     else
         echo "Invalid choice. Please enter 1, 2, 3, or 4."
     fi
