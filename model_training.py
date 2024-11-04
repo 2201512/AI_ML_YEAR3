@@ -22,6 +22,24 @@ from sklearn.model_selection import cross_val_score, StratifiedShuffleSplit
 from sklearn.metrics import accuracy_score, log_loss, mean_squared_error,confusion_matrix, precision_score, recall_score, auc,roc_curve, roc_auc_score
 from xgboost import XGBClassifier
 import joblib
+import configparser
+
+config_file = "model_params.txt"
+
+def load_model_params(config_file, model_name):
+    config = configparser.ConfigParser()
+    config.read(config_file)
+
+    def safe_eval(value):
+        # Attempt to evaluate the value, return as a string if it fails
+        try:
+            return eval(value)
+        except NameError:
+            return value
+
+    # Return the parsed and safely evaluated parameters
+    return {key: safe_eval(value) for key, value in config[model_name].items()}
+
 
 """
 RandomForestClassifier
@@ -85,18 +103,32 @@ subsample: Set to a value below 1 (e.g., 0.8) to introduce more randomness and r
 #     "XGBoost": XGBClassifier(use_label_encoder=False, eval_metric='logloss', n_estimators=500, learning_rate=0.05, max_depth=8, subsample=0.8)
 # }
 
+# MODELS = {
+#     "RandomForest": RandomForestClassifier(n_estimators=200, max_depth=20, min_samples_split=2, min_samples_leaf=1, random_state=42),
+#     "AdaBoost": AdaBoostClassifier(n_estimators=100, learning_rate=0.5),
+#     "GradientBoosting": GradientBoostingClassifier(n_estimators=300, learning_rate=0.05, max_depth=20, min_samples_split=10, min_samples_leaf=5),
+#     "KNeighbors": KNeighborsClassifier(n_neighbors=5, weights='distance'),
+#     "SVC": SVC(C=1, kernel='rbf', gamma='scale'),
+#     "DecisionTree": DecisionTreeClassifier(max_depth=15, min_samples_split=5, min_samples_leaf=2),
+#     "LogisticRegression": LogisticRegression(max_iter=200, penalty='l2', C=1.0),
+#     "NaiveBayes": GaussianNB(var_smoothing=1e-9),
+#     "NeuralNetwork": MLPClassifier(hidden_layer_sizes=(100, 50, 50, 50), max_iter=800, learning_rate_init=0.001, alpha=0.0001),
+#     "XGBoost": XGBClassifier(use_label_encoder=False, eval_metric='logloss', n_estimators=500, learning_rate=0.05, max_depth=8, subsample=0.8)
+# }
+
 MODELS = {
-    "RandomForest": RandomForestClassifier(n_estimators=200, max_depth=20, min_samples_split=2, min_samples_leaf=1, random_state=42),
-    "AdaBoost": AdaBoostClassifier(n_estimators=100, learning_rate=0.5),
-    "GradientBoosting": GradientBoostingClassifier(n_estimators=300, learning_rate=0.05, max_depth=20, min_samples_split=10, min_samples_leaf=5),
-    "KNeighbors": KNeighborsClassifier(n_neighbors=5, weights='distance'),
-    "SVC": SVC(C=1, kernel='rbf', gamma='scale'),
-    "DecisionTree": DecisionTreeClassifier(max_depth=15, min_samples_split=5, min_samples_leaf=2),
-    "LogisticRegression": LogisticRegression(max_iter=200, penalty='l2', C=1.0),
-    "NaiveBayes": GaussianNB(var_smoothing=1e-9),
-    "NeuralNetwork": MLPClassifier(hidden_layer_sizes=(100, 50, 50, 50), max_iter=800, learning_rate_init=0.001, alpha=0.0001),
-    "XGBoost": XGBClassifier(use_label_encoder=False, eval_metric='logloss', n_estimators=500, learning_rate=0.05, max_depth=8, subsample=0.8)
+    "RandomForest": RandomForestClassifier(**load_model_params(config_file, "RandomForest")),
+    "AdaBoost": AdaBoostClassifier(**load_model_params(config_file, "AdaBoost")),
+    "GradientBoosting": GradientBoostingClassifier(**load_model_params(config_file, "GradientBoosting")),
+    "KNeighbors": KNeighborsClassifier(**load_model_params(config_file, "KNeighbors")),
+    "SVC": SVC(**load_model_params(config_file, "SVC")),
+    "DecisionTree": DecisionTreeClassifier(**load_model_params(config_file, "DecisionTree")),
+    "LogisticRegression": LogisticRegression(**load_model_params(config_file, "LogisticRegression")),
+    "NaiveBayes": GaussianNB(**load_model_params(config_file, "NaiveBayes")),
+    "NeuralNetwork": MLPClassifier(**load_model_params(config_file, "NeuralNetwork")),
+    "XGBoost": XGBClassifier(**load_model_params(config_file, "XGBoost"))
 }
+
 
 # MODELS = {
 #     "RandomForest": RandomForestClassifier(n_estimators=300, max_depth=20, min_samples_split=2, min_samples_leaf=1, random_state=42),
@@ -110,6 +142,8 @@ MODELS = {
 # MODELS = {
 #     "RandomForest": RandomForestClassifier(n_estimators=150, max_depth=None, min_samples_split=2, min_samples_leaf=1, random_state=42)
 # }
+
+
 
 def train_and_save_models(X, y, model_output):
     if not os.path.exists(model_output):
@@ -140,14 +174,28 @@ def train_and_save_models(X, y, model_output):
         joblib.dump(pipeline, model_path)
         print(f"Trained and saved model: {model_name} to {model_path}")
 
+# def select_features(data):
+#     print("Available features:")
+#     for idx, column in enumerate(data.columns):
+#         print(f"{idx + 1}: {column}")
+#     selected = input("Enter the feature numbers to use (comma-separated) or type 'all' to select all: ")
+    
+#     if selected.lower() == 'all':
+#         return data
+#     else:
+#         selected_indices = [int(i) - 1 for i in selected.split(',')]
+#         return data.iloc[:, selected_indices]
 def select_features(data):
     print("Available features:")
     for idx, column in enumerate(data.columns):
         print(f"{idx + 1}: {column}")
-    selected = input("Enter the feature numbers to use (comma-separated) or type 'all' to select all: ")
+    selected = input("Enter the feature numbers to use (comma-separated), type 'all' to select all, or press Enter for default (2,3,4,5,6): ")
     
     if selected.lower() == 'all':
         return data
+    elif selected.strip() == '':  # Default option if no input
+        default_indices = [1, 2, 3, 4, 5]  # 2,3,4,5,6 are indices 1,2,3,4,5 (0-based)
+        return data.iloc[:, default_indices]
     else:
         selected_indices = [int(i) - 1 for i in selected.split(',')]
         return data.iloc[:, selected_indices]
@@ -177,7 +225,8 @@ def select_training_file(input_folder):
     choice = int(input("Select the file number to train the model on: ")) - 1
     return os.path.join(input_folder, files[choice])
 
-def main(input_folder, model_output):
+def main(input_folder, model_output, config_file="model_params.txt"):
+
     # List available files in cleaned_data folder
     files = [f for f in os.listdir(input_folder) if f.endswith('.csv')]
     print("Available files in cleaned_data:")
@@ -213,6 +262,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train various models on a selected dataset.")
     parser.add_argument('--input_folder', type=str, default="cleaned_data", help="Path to the cleaned data folder.")
     parser.add_argument('--model_output', type=str, default="model_outputs", help="Path to save the trained models.")
+    parser.add_argument('--config_file', type=str, default="model_params.txt", help="Path to the model parameter file.")
     
     args = parser.parse_args()
     main(args.input_folder, args.model_output)
