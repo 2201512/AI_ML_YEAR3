@@ -324,7 +324,7 @@ import seaborn as sns
 import argparse
 from scipy.stats import shapiro, kstest, norm, probplot, chi2_contingency
 from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import OneHotEncoder, PolynomialFeatures, StandardScaler
+from sklearn.preprocessing import OneHotEncoder, PolynomialFeatures, StandardScaler, FunctionTransformer
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn import neural_network
@@ -430,7 +430,27 @@ def evaluate_model(model, X_test, y_test, output_dir, model_name):
         feature_names = preprocessor.get_feature_names_out()
     except AttributeError:
         # For older versions of sklearn
-        feature_names = preprocessor.get_feature_names()
+        # feature_names = preprocessor.get_feature_names()
+        # Manually construct feature names
+        feature_names = []
+        for name, transformer, cols in preprocessor.transformers_:
+            if transformer == 'passthrough':
+                feature_names.extend(cols)
+            elif isinstance(transformer, Pipeline):
+                # Handle nested pipelines
+                last_transformer = transformer.steps[-1][1]
+                if hasattr(last_transformer, 'get_feature_names_out'):
+                    trans_feature_names = last_transformer.get_feature_names_out()
+                    feature_names.extend(trans_feature_names)
+                else:
+                    # Use input feature names
+                    feature_names.extend(cols)
+            elif hasattr(transformer, 'get_feature_names_out'):
+                trans_feature_names = transformer.get_feature_names_out()
+                feature_names.extend(trans_feature_names)
+            else:
+                # Use input feature names
+                feature_names.extend(cols)
 
     # Feature Importance or Coefficients (for applicable models)
     # if hasattr(model, 'feature_importances_'):
