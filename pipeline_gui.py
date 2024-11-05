@@ -39,6 +39,12 @@ class PipelineGUI:
         self.model_file_dropdown = ttk.Combobox(main_frame, state="readonly")
         self.model_file_dropdown.pack(fill="x", pady=5)
 
+        # Dropdown for selecting file for prediction
+        self.prediction_file_label = tk.Label(main_frame, text="Select File for Prediction:")
+        self.prediction_file_label.pack(anchor="w")
+        self.prediction_file_dropdown = ttk.Combobox(main_frame, state="readonly")
+        self.prediction_file_dropdown.pack(fill="x", pady=5)
+
         # Buttons for each script step
         self.add_button(main_frame, "Run Data Cleaning", self.run_data_cleaning_thread)
         self.add_button(main_frame, "Run EDA", self.run_eda_thread)
@@ -70,11 +76,22 @@ class PipelineGUI:
 
     def run_command(self, command):
         """Run a shell command and capture real-time output with interactive input."""
-        self.current_process = subprocess.Popen(
-            command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, shell=True
-        )
+        # self.current_process = subprocess.Popen(
+        #     command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, shell=True
+        # )
 
-        # Start a thread to capture output without blocking the GUI
+        # # Start a thread to capture output without blocking the GUI
+        env = os.environ.copy()
+        env['PYTHONUNBUFFERED'] = '1'  # Ensure unbuffered output
+        self.current_process = subprocess.Popen(
+            command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            shell=True,
+            env=env
+        )
         threading.Thread(target=self.capture_output).start()
 
     def capture_output(self):
@@ -140,15 +157,28 @@ class PipelineGUI:
         if files:
             self.file_dropdown.current(0)  # Set the first file as the default selection
 
+    # def update_eda_file_list(self, folder_path):
+    #     """Update the dropdown list with files from the selected cleaned data folder for EDA."""
+    #     if not folder_path:
+    #         return
+
+    #     files = [f for f in os.listdir(folder_path) if f.endswith('.csv')]
+    #     self.eda_file_dropdown['values'] = files
+    #     if files:
+    #         self.eda_file_dropdown.current(0)
+
     def update_eda_file_list(self, folder_path):
-        """Update the dropdown list with files from the selected cleaned data folder for EDA."""
+        """Update the dropdown list with files from the selected cleaned data folder for EDA and prediction."""
         if not folder_path:
             return
 
         files = [f for f in os.listdir(folder_path) if f.endswith('.csv')]
         self.eda_file_dropdown['values'] = files
+        self.prediction_file_dropdown['values'] = files  # Update prediction file dropdown
         if files:
             self.eda_file_dropdown.current(0)
+            self.prediction_file_dropdown.current(0)
+
 
     def update_model_training_file_list(self, folder_path):
         # Updates model training files based on model_training_folder
@@ -187,7 +217,7 @@ class PipelineGUI:
         threading.Thread(target=self.run_model_training).start()
 
     def run_prediction_thread(self):
-        threading.Thread(target=self.run_perform_prediction).start()
+        threading.Thread(target=self.run_prediction).start()
 
     def run_clean_data(self):
         training_data_folder = self.training_data_folder.get()
@@ -238,14 +268,28 @@ class PipelineGUI:
         else:
             messagebox.showerror("Error", "Please select cleaned data and model output folders for training.")
 
-    def run_perform_prediction(self):
+    # def run_perform_prediction(self):
+    #     model_folder = self.model_output_folder.get()
+    #     output_folder = "predict_outputs"
+    #     if model_folder:
+    #         command = f"python perform_prediction.py --model_folder {model_folder} --output_folder {output_folder}"
+    #         self.run_command(command)
+    #     else:
+    #         messagebox.showerror("Error", "Please select model output folder for prediction.")
+
+    def run_prediction(self):
+        input_folder = self.cleaned_data_folder.get()
         model_folder = self.model_output_folder.get()
-        output_folder = "predict_outputs"
-        if model_folder:
-            command = f"python perform_prediction.py --model_folder {model_folder} --output_folder {output_folder}"
+        output_folder = "visualize_output"  # You can also add a folder selector for this if needed
+        selected_file = self.prediction_file_dropdown.get()
+
+        if input_folder and model_folder and selected_file:
+            command = f"python -u perform_prediction.py --input_folder {input_folder} --model_folder {model_folder} --output_folder {output_folder} --file {selected_file}"
             self.run_command(command)
         else:
-            messagebox.showerror("Error", "Please select model output folder for prediction.")
+            messagebox.showerror("Error", "Please select input, model, and output folders, and a file for prediction.")
+
+
 
 if __name__ == "__main__":
     root = tk.Tk()

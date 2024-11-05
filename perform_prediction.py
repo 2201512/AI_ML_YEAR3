@@ -343,6 +343,7 @@ from sklearn.metrics import (accuracy_score, log_loss, mean_squared_error, confu
                              ConfusionMatrixDisplay)
 from sklearn.calibration import calibration_curve
 import joblib
+import sys
 
 def select_testing_file(input_folder):
     files = [f for f in os.listdir(input_folder) if f.endswith('.csv')]
@@ -352,7 +353,9 @@ def select_testing_file(input_folder):
     print("Available files for testing:")
     for idx, file in enumerate(files, 1):
         print(f"{idx}: {file}")
-    choice = int(input("Select the file number to test the model on: ")) - 1
+    # choice = int(input("Select the file number to test the model on: ")) - 1
+    print("Select the file number to test the model on: ", flush=True) # For gui
+    choice = int(input()) - 1   # For gui
     return os.path.join(input_folder, files[choice])
 
 def load_data(file_path):
@@ -417,6 +420,17 @@ def evaluate_model(model, X_test, y_test, output_dir):
         plt.savefig(os.path.join(output_dir, "calibration_curve.png"))
         plt.close()
 
+    # GPT suggestion
+    # Access the estimator inside the pipeline
+    estimator = model.named_steps['model']
+    preprocessor = model.named_steps['preprocessor']
+    # Retrieve feature names after preprocessing
+    try:
+        feature_names = preprocessor.get_feature_names_out()
+    except AttributeError:
+        # For older versions of sklearn
+        feature_names = preprocessor.get_feature_names()
+
     # Feature Importance or Coefficients (for applicable models)
     if hasattr(model, 'feature_importances_'):
         importances = model.feature_importances_
@@ -472,14 +486,21 @@ def evaluate_model(model, X_test, y_test, output_dir):
     }
     return metrics
 
-def main():
-    input_folder = "cleaned_data"
-    model_folder = "model_outputs"
-    output_folder = "visualize_output"
+def main(input_folder, model_folder, output_folder, selected_file=None):
+    # input_folder = "cleaned_data"
+    # model_folder = "model_outputs"
+    # output_folder = "visualize_output"
 
-    test_file = select_testing_file(input_folder)
-    if not test_file:
-        return
+    # test_file = select_testing_file(input_folder)
+    # if not test_file:
+    #     return
+
+    if selected_file:
+        test_file = os.path.join(input_folder, selected_file)
+    else:
+        test_file = select_testing_file(input_folder)
+        if not test_file:
+            return
 
     X_test, y_test = load_data(test_file)
     models = load_models(model_folder)
@@ -514,4 +535,13 @@ def main():
     print(f"Prediction report with confusion matrices saved to {report_path}")
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Perform predictions using trained models.")
+    parser.add_argument('--input_folder', type=str, default="cleaned_data", help="Path to the testing data folder.")
+    parser.add_argument('--model_folder', type=str, default="model_outputs", help="Path to the trained models folder.")
+    parser.add_argument('--output_folder', type=str, default="visualize_output", help="Path to save the prediction reports and visualizations.")
+    parser.add_argument('--file', type=str, help="Name of the file to use for prediction.")
+    args = parser.parse_args()
+
+    # main(args.input_folder, args.model_folder, args.output_folder)
+    main(args.input_folder, args.model_folder, args.output_folder, selected_file=args.file)
+
