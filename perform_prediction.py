@@ -459,9 +459,12 @@ def evaluate_model(model, X_test, y_test, output_dir, model_name):
     #     print(f"Feature coefficients plot saved for {model} at {feature_coefficients_path}")
     # else:
     #     print(f"No feature importance or coefficients available for model {model}.")
+    # Initialize variable to store feature importances
+    feature_importances = None
     # Feature Importance or Coefficients (for applicable models)
     if hasattr(estimator, 'feature_importances_'):
         importances = estimator.feature_importances_
+        feature_importances = importances
         indices = np.argsort(importances)[::-1]
         plt.figure()
         plt.title("Feature Importances")
@@ -474,6 +477,7 @@ def evaluate_model(model, X_test, y_test, output_dir, model_name):
         print(f"Feature importance plot saved for {model_name} at {feature_importance_path}")
     elif hasattr(estimator, 'coef_'):
         importances = np.abs(estimator.coef_).flatten()
+        feature_importances = importances
         indices = np.argsort(importances)[::-1]
         plt.figure()
         plt.title("Feature Coefficients (Importance)")
@@ -486,6 +490,12 @@ def evaluate_model(model, X_test, y_test, output_dir, model_name):
         print(f"Feature coefficients plot saved for {model_name} at {feature_coefficients_path}")
     else:
         print(f"No feature importance or coefficients available for model {model_name}.")
+    # Print feature importances in a readable format
+    if feature_importances is not None:
+        print(f"Feature importances for {model_name}:")
+        for idx in indices:
+            print(f"{feature_names[idx]}: {feature_importances[idx]:.4f}")
+        print("\n")
 
     # Heatmap of Predictions vs True Values
     sns.heatmap(pd.DataFrame({"True": y_test, "Predicted": y_pred}).pivot_table(index='True', columns='Predicted', aggfunc=len, fill_value=0), annot=True, fmt="d", cmap="YlGnBu")
