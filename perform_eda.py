@@ -551,23 +551,38 @@ def eda_q3(data_path, output_folder):
 
     print(f"EDA completed. Results saved in {output_folder}.")
 
+# if __name__ == "__main__":
+#     parser = argparse.ArgumentParser(description="Perform EDA on cleaned data.")
+#     parser.add_argument("--input_folder", type=str, default="cleaned_data", help="Path to the cleaned data folder.")
+#     parser.add_argument("--output_folder", type=str, default="eda_outputs", help="Folder to save the EDA outputs.")
+    
+#     args = parser.parse_args()
+    
+#     # List available files in cleaned_data
+#     files = os.listdir(args.input_folder)
+#     print("Available files in cleaned_data:")
+#     for idx, file in enumerate(files):
+#         print(f"{idx + 1}: {file}")
+
+#     # Prompt user for file selection
+#     file_choice = int(input("Select the file number to perform EDA on: ")) - 1
+#     selected_file = files[file_choice]
+#     data_path = os.path.join(args.input_folder, selected_file)
+
+#     # Run EDA on the selected file and save results to output folder
+#     eda_q3(data_path, args.output_folder)
+
+# For gui
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Perform EDA on cleaned data.")
     parser.add_argument("--input_folder", type=str, default="cleaned_data", help="Path to the cleaned data folder.")
     parser.add_argument("--output_folder", type=str, default="eda_outputs", help="Folder to save the EDA outputs.")
-    
+    parser.add_argument("--file", type=str, required=True, help="Specific file to perform EDA on.")
+
     args = parser.parse_args()
-    
-    # List available files in cleaned_data
-    files = os.listdir(args.input_folder)
-    print("Available files in cleaned_data:")
-    for idx, file in enumerate(files):
-        print(f"{idx + 1}: {file}")
 
-    # Prompt user for file selection
-    file_choice = int(input("Select the file number to perform EDA on: ")) - 1
-    selected_file = files[file_choice]
-    data_path = os.path.join(args.input_folder, selected_file)
+    # Ensure the specified file path is constructed from input folder and file name
+    data_path = os.path.join(args.input_folder, args.file)
 
-    # Run EDA on the selected file and save results to output folder
+    # Run EDA on the specified file and save results to output folder
     eda_q3(data_path, args.output_folder)

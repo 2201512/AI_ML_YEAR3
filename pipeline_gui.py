@@ -1,120 +1,253 @@
-import tkinter as tk
-from tkinter import filedialog, messagebox, scrolledtext
-import subprocess
 import os
+import subprocess
+import tkinter as tk
+from tkinter import filedialog, scrolledtext, messagebox
+from tkinter import ttk
+import threading
 
-# Main GUI class
 class PipelineGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Data Pipeline GUI")
-        self.root.geometry("400x300")
 
-        # Copy terminal output to GUI
-        
+        # Frame setup
+        main_frame = tk.Frame(root)
+        main_frame.pack(padx=10, pady=10)
 
-        # Initialize folder paths
-        self.training_data_folder = None
-        self.cleaned_data_folder = None
-        self.model_output_folder = None
-        
-        # Directory selection buttons
-        self.create_button("Select Training Data Folder", self.select_training_data_folder)
-        self.create_button("Select Cleaned Data Folder", self.select_cleaned_data_folder)
-        self.create_button("Select Model Output Folder", self.select_model_output_folder)
-        
-        # File selection for EDA
-        self.create_button("Select Data for EDA", self.select_eda_file)
-        
-        # Run buttons for each stage
-        self.create_button("Run Data Cleaning", self.run_data_cleaning)
-        self.create_button("Run EDA", self.run_eda)
-        self.create_button("Run Model Training", self.run_model_training)
-        self.create_button("Run Prediction", self.run_prediction)
-        
-        # Status label
-        self.status_label = tk.Label(self.root, text="Status: Waiting")
-        self.status_label.pack(pady=10)
+        # Folder selectors for each step
+        self.training_data_folder = self.add_folder_selector(main_frame, "Select Training Data Folder:", self.update_file_list)
+        self.cleaned_data_folder = self.add_folder_selector(main_frame, "Select Cleaned Data Folder:", self.update_eda_file_list)
+        self.model_training_folder = self.add_folder_selector(main_frame, "Select Model Training Folder:", self.update_model_training_file_list)
+        self.model_output_folder = self.add_folder_selector(main_frame, "Select Model Output Folder:")
+        self.eda_output_folder = self.add_folder_selector(main_frame, "Select EDA Output Folder:")
 
-    def create_button(self, text, command):
-        button = tk.Button(self.root, text=text, command=command, width=30)
-        button.pack(pady=5)
+        # Dropdown for selecting file for cleaning from training data folder
+        self.file_label = tk.Label(main_frame, text="Select File for Data Cleaning:")
+        self.file_label.pack(anchor="w")
+        self.file_dropdown = ttk.Combobox(main_frame, state="readonly")
+        self.file_dropdown.pack(fill="x", pady=5)
 
-    # Directory and file selection functions
-    def select_training_data_folder(self):
-        self.training_data_folder = filedialog.askdirectory()
-        self.status_label.config(text=f"Selected Training Data: {self.training_data_folder}")
+        # Dropdown for selecting file for EDA
+        self.eda_file_label = tk.Label(main_frame, text="Select File for EDA:")
+        self.eda_file_label.pack(anchor="w")
+        self.eda_file_dropdown = ttk.Combobox(main_frame, state="readonly")
+        self.eda_file_dropdown.pack(fill="x", pady=5)
 
-    def select_cleaned_data_folder(self):
-        self.cleaned_data_folder = filedialog.askdirectory()
-        self.status_label.config(text=f"Selected Cleaned Data: {self.cleaned_data_folder}")
+        # Dropdown for selecting file for model training
+        self.model_file_label = tk.Label(main_frame, text="Select Cleaned File for Model Training:")
+        self.model_file_label.pack(anchor="w")
+        self.model_file_dropdown = ttk.Combobox(main_frame, state="readonly")
+        self.model_file_dropdown.pack(fill="x", pady=5)
 
-    def select_model_output_folder(self):
-        self.model_output_folder = filedialog.askdirectory()
-        self.status_label.config(text=f"Selected Model Output: {self.model_output_folder}")
+        # Buttons for each script step
+        self.add_button(main_frame, "Run Data Cleaning", self.run_data_cleaning_thread)
+        self.add_button(main_frame, "Run EDA", self.run_eda_thread)
+        self.add_button(main_frame, "Run Model Training", self.run_model_training_thread)
+        self.add_button(main_frame, "Run Prediction", self.run_prediction_thread)
 
-    def select_eda_file(self):
-        self.eda_file = filedialog.askopenfilename(filetypes=[("CSV files", "*.csv")])
-        self.status_label.config(text=f"Selected EDA File: {self.eda_file}")
+        # Output box to capture terminal output
+        self.output_text = scrolledtext.ScrolledText(main_frame, wrap=tk.WORD, height=15, width=80)
+        self.output_text.pack(pady=10)
+        # For terminal input
+        self.output_text.bind("<Return>", self.on_enter)  # Bind Enter key to capture user input
+        self.current_process = None  # Store the current subprocess for user input
 
-    # Run functions for each stage
-    def run_data_cleaning(self):
-        if not self.training_data_folder or not self.cleaned_data_folder:
-            messagebox.showwarning("Warning", "Please select both training data and cleaned data folders.")
+    def on_enter(self, event):
+        """Handle Enter key press for user input in output_text."""
+        if self.current_process:
+            # Find the index of the last newline character
+            last_newline_index = self.output_text.search('\n', 'end-1c', '1.0', backwards=True)
+            if last_newline_index:
+                user_input_start = self.output_text.index('%s + 1c' % last_newline_index)
+            else:
+                user_input_start = '1.0'
+            user_input = self.output_text.get(user_input_start, 'end-1c') + '\n'
+            self.current_process.stdin.write(user_input)
+            self.current_process.stdin.flush()
+            self.output_text.insert(tk.END, '\n')  # Add a newline after input
+            return 'break'  # Prevent default behavior of adding another newline
+
+
+    def run_command(self, command):
+        """Run a shell command and capture real-time output with interactive input."""
+        self.current_process = subprocess.Popen(
+            command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, shell=True
+        )
+
+        # Start a thread to capture output without blocking the GUI
+        threading.Thread(target=self.capture_output).start()
+
+    def capture_output(self):
+        """Capture real-time output from the subprocess and display it in output_text."""
+        for line in self.current_process.stdout:
+            self.output_text.insert(tk.END, line)
+            self.output_text.see(tk.END)
+            # Move the insertion cursor to the end
+            self.output_text.mark_set(tk.INSERT, tk.END)
+            self.output_text.focus_set()
+            self.root.update()  # Update the GUI with new output
+
+        for line in self.current_process.stderr:
+            self.output_text.insert(tk.END, line)
+            self.output_text.see(tk.END)
+            # Move the insertion cursor to the end
+            self.output_text.mark_set(tk.INSERT, tk.END)
+            self.output_text.focus_set()
+            self.root.update()
+
+        # Close process streams after completion
+        self.current_process.stdout.close()
+        self.current_process.stderr.close()
+        self.current_process.wait()
+        self.current_process = None  # Reset the process
+
+
+    def add_folder_selector(self, frame, label_text, command=None):
+        label = tk.Label(frame, text=label_text)
+        label.pack(anchor="w")
+        folder_path = tk.StringVar()
+        folder_entry = tk.Entry(frame, textvariable=folder_path, width=60)
+        folder_entry.pack(anchor="w", pady=5)
+        browse_button = tk.Button(frame, text="Browse", command=lambda: self.select_folder(folder_path, command))
+        browse_button.pack(anchor="w", pady=5)
+        return folder_path
+
+    def browse_folder(self, folder_path_var, update_command=None):
+        selected_folder = filedialog.askdirectory()
+        if selected_folder:
+            folder_path_var.set(selected_folder)
+            if update_command:
+                update_command(selected_folder)
+
+    def add_button(self, frame, text, command):
+        button = tk.Button(frame, text=text, command=command)
+        button.pack(fill="x", pady=5)
+
+    def select_folder(self, folder_path_var, callback=None):
+        folder_selected = filedialog.askdirectory()
+        if folder_selected:
+            folder_path_var.set(folder_selected)
+            if callback:
+                callback(folder_selected)
+
+    def update_file_list(self, folder_path):
+        """Update the dropdown list with files from the selected training data folder."""
+        if not folder_path:
             return
-        self.run_script("clean_data.py", self.training_data_folder, self.cleaned_data_folder)
-        # self.run_script("clean_data.py", "cleaned_data_folder")
 
-    def run_eda(self):
-        if not self.eda_file:
-            messagebox.showwarning("Warning", "Please select an EDA file.")
+        files = [f for f in os.listdir(folder_path) if f.endswith('.csv')]
+        self.file_dropdown['values'] = files  # Update dropdown values
+        if files:
+            self.file_dropdown.current(0)  # Set the first file as the default selection
+
+    def update_eda_file_list(self, folder_path):
+        """Update the dropdown list with files from the selected cleaned data folder for EDA."""
+        if not folder_path:
             return
-        self.run_script("perform_eda.py", self.eda_file, self.cleaned_data_folder)
-        # self.run_script("perform_eda.py", "eda_file")
+
+        files = [f for f in os.listdir(folder_path) if f.endswith('.csv')]
+        self.eda_file_dropdown['values'] = files
+        if files:
+            self.eda_file_dropdown.current(0)
+
+    def update_model_training_file_list(self, folder_path):
+        # Updates model training files based on model_training_folder
+        files = [f for f in os.listdir(folder_path) if f.endswith('.csv')]
+        self.model_file_dropdown['values'] = files
+        if files:
+            self.model_file_dropdown.current(0)
+
+    # def run_command(self, command):
+    #     process = subprocess.Popen(
+    #         command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, shell=True
+    #     )
+
+    #     # Capture real-time output
+    #     for line in process.stdout:
+    #         self.output_text.insert(tk.END, line)
+    #         self.output_text.see(tk.END)
+    #         self.root.update()
+
+    #     for line in process.stderr:
+    #         self.output_text.insert(tk.END, line)
+    #         self.output_text.see(tk.END)
+    #         self.root.update()
+
+    #     process.stdout.close()
+    #     process.stderr.close()
+    #     process.wait()
+
+    def run_data_cleaning_thread(self):
+        threading.Thread(target=self.run_clean_data).start()
+
+    def run_eda_thread(self):
+        threading.Thread(target=self.run_perform_eda).start()
+
+    def run_model_training_thread(self):
+        threading.Thread(target=self.run_model_training).start()
+
+    def run_prediction_thread(self):
+        threading.Thread(target=self.run_perform_prediction).start()
+
+    def run_clean_data(self):
+        training_data_folder = self.training_data_folder.get()
+        selected_file = self.file_dropdown.get()
+        cleaned_data_folder = self.cleaned_data_folder.get()
+
+        if training_data_folder and selected_file and cleaned_data_folder:
+            # Ensure that the cleaned data folder exists
+            os.makedirs(cleaned_data_folder, exist_ok=True)
+
+            # Constructing the input and output paths correctly
+            input_file_path = os.path.join(training_data_folder, selected_file)
+            output_file_name = f"cleaned_{selected_file}"
+            output_file_path = os.path.join(cleaned_data_folder, output_file_name)
+
+            # Adjusted command to avoid --input_file; use --file instead, matching the argument name in clean_data.py
+            command = f"python clean_data.py --input_folder {training_data_folder} --output_folder {cleaned_data_folder} --file {selected_file}"
+            
+            # Run the command
+            self.run_command(command)
+        else:
+            messagebox.showerror("Error", "Please select the training data folder, cleaned data folder, and a file for data cleaning.")
+
+    def run_perform_eda(self):
+        cleaned_data_folder = self.cleaned_data_folder.get()
+        selected_file = self.eda_file_dropdown.get()
+        eda_output_folder = self.eda_output_folder.get()
+
+        if cleaned_data_folder and selected_file and eda_output_folder:
+            os.makedirs(eda_output_folder, exist_ok=True)
+            input_file_path = os.path.join(cleaned_data_folder, selected_file)
+            command = f"python perform_eda.py --input_folder {cleaned_data_folder} --output_folder {eda_output_folder} --file {selected_file}"
+            self.run_command(command)
+        else:
+            messagebox.showerror("Error", "Please select the cleaned data folder, EDA output folder, and a file for EDA.")
 
     def run_model_training(self):
-        if not self.cleaned_data_folder or not self.model_output_folder:
-            messagebox.showwarning("Warning", "Please select cleaned data and model output folders.")
-            return
-        # self.run_script("model_training.py", self.cleaned_data_folder, self.model_output_folder)
-        self.run_script("model_training.py", self.cleaned_data_folder, self.model_output_folder, "--model_output")
-        # self.run_script("model_training.py", "model_output_folder")
+        selected_file = self.model_file_dropdown.get()
+        cleaned_data_folder = self.cleaned_data_folder.get()
+        model_output_folder = self.model_output_folder.get()
 
-    def run_prediction(self):
-        if not self.cleaned_data_folder or not self.model_output_folder:
-            messagebox.showwarning("Warning", "Please select cleaned data and model output folders.")
-            return
-        self.run_script("perform_prediction.py", self.cleaned_data_folder, self.model_output_folder)
-        # self.run_script("perform_prediction.py", "model_output_folder")
+        # if cleaned_data_folder and model_output_folder and selected_file:
+        if model_output_folder and selected_file:
+            # command = f"python model_training.py --input_folder {cleaned_data_folder} --model_output {model_output_folder}"
+            # command = f"python model_training.py --model_output {model_output_folder}"
+            command = f"python -u model_training.py --model_output {model_output_folder}"
+            self.run_command(command)
+        else:
+            messagebox.showerror("Error", "Please select cleaned data and model output folders for training.")
 
-    # def run_script(self, script_name, folder_name):
-    #     try:
-    #         subprocess.run(["python", script_name, "--input_folder", getattr(self, folder_name)], check=True)
-    #         self.status_label.config(text=f"{script_name} completed successfully")
-    #     except subprocess.CalledProcessError:
-    #         messagebox.showerror("Error", f"Failed to run {script_name}")
-    #         self.status_label.config(text=f"Error: {script_name} failed")
-    # Version that takes input and output folders as arguments
-    # def run_script(self, script_name, input_folder, output_folder):
-    #     try:
-    #         subprocess.run(["python", script_name, "--input_folder", input_folder, "--output_folder", output_folder], check=True)
-    #         self.status_label.config(text=f"{script_name} completed successfully")
-    #     except subprocess.CalledProcessError:
-    #         messagebox.showerror("Error", f"Failed to run {script_name}")
-    #         self.status_label.config(text=f"Error: {script_name} failed")
-    def run_script(self, script_name, input_folder, output_folder, folder_arg_name="--output_folder"):
-        try:
-            subprocess.run(
-                ["python", script_name, "--input_folder", input_folder, folder_arg_name, output_folder],
-                check=True
-            )
-            self.status_label.config(text=f"{script_name} completed successfully")
-        except subprocess.CalledProcessError:
-            messagebox.showerror("Error", f"Failed to run {script_name}")
-            self.status_label.config(text=f"Error: {script_name} failed")
+    def run_perform_prediction(self):
+        model_folder = self.model_output_folder.get()
+        output_folder = "predict_outputs"
+        if model_folder:
+            command = f"python perform_prediction.py --model_folder {model_folder} --output_folder {output_folder}"
+            self.run_command(command)
+        else:
+            messagebox.showerror("Error", "Please select model output folder for prediction.")
 
-
-# Initialize the GUI
-root = tk.Tk()
-app = PipelineGUI(root)
-root.mainloop()
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = PipelineGUI(root)
+    root.mainloop()
