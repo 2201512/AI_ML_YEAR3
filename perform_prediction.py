@@ -341,6 +341,7 @@ from sklearn.metrics import (accuracy_score, log_loss, mean_squared_error, confu
                              precision_score, recall_score, auc, roc_curve, roc_auc_score,
                              f1_score, PrecisionRecallDisplay, RocCurveDisplay,
                              ConfusionMatrixDisplay)
+from sklearn.metrics import classification_report
 from sklearn.calibration import calibration_curve
 import joblib
 import sys
@@ -381,7 +382,7 @@ def preprocess_test_data(X_test, training_features):
     X_test = X_test[training_features]
     return X_test
 
-def evaluate_model(model, X_test, y_test, output_dir):
+def evaluate_model(model, X_test, y_test, output_dir, model_name):
     y_pred = model.predict(X_test)
     y_prob = model.predict_proba(X_test)[:, 1] if hasattr(model, "predict_proba") else None
 
@@ -432,32 +433,59 @@ def evaluate_model(model, X_test, y_test, output_dir):
         feature_names = preprocessor.get_feature_names()
 
     # Feature Importance or Coefficients (for applicable models)
-    if hasattr(model, 'feature_importances_'):
-        importances = model.feature_importances_
+    # if hasattr(model, 'feature_importances_'):
+    #     importances = model.feature_importances_
+    #     indices = np.argsort(importances)[::-1]
+    #     plt.figure()
+    #     plt.title("Feature Importances")
+    #     plt.bar(range(X_test.shape[1]), importances[indices], align="center")
+    #     plt.xticks(range(X_test.shape[1]), [X_test.columns[i] for i in indices], rotation=90)
+    #     plt.tight_layout()  # Adjust layout to prevent label cutoff
+    #     feature_importance_path = os.path.join(output_dir, "feature_importance.png")
+    #     plt.savefig(feature_importance_path)
+    #     plt.close()
+    #     print(f"Feature importance plot saved for {model} at {feature_importance_path}")
+    # elif hasattr(model, 'coef_'):
+    #     importances = np.abs(model.coef_).flatten()
+    #     indices = np.argsort(importances)[::-1]
+    #     plt.figure()
+    #     plt.title("Feature Coefficients (Importance)")
+    #     plt.bar(range(X_test.shape[1]), importances[indices], align="center")
+    #     plt.xticks(range(X_test.shape[1]), [X_test.columns[i] for i in indices], rotation=90)
+    #     plt.tight_layout()
+    #     feature_coefficients_path = os.path.join(output_dir, "feature_coefficients.png")
+    #     plt.savefig(feature_coefficients_path)
+    #     plt.close()
+    #     print(f"Feature coefficients plot saved for {model} at {feature_coefficients_path}")
+    # else:
+    #     print(f"No feature importance or coefficients available for model {model}.")
+    # Feature Importance or Coefficients (for applicable models)
+    if hasattr(estimator, 'feature_importances_'):
+        importances = estimator.feature_importances_
         indices = np.argsort(importances)[::-1]
         plt.figure()
         plt.title("Feature Importances")
-        plt.bar(range(X_test.shape[1]), importances[indices], align="center")
-        plt.xticks(range(X_test.shape[1]), [X_test.columns[i] for i in indices], rotation=90)
+        plt.bar(range(len(importances)), importances[indices], align="center")
+        plt.xticks(range(len(importances)), [feature_names[i] for i in indices], rotation=90)
         plt.tight_layout()  # Adjust layout to prevent label cutoff
         feature_importance_path = os.path.join(output_dir, "feature_importance.png")
         plt.savefig(feature_importance_path)
         plt.close()
-        print(f"Feature importance plot saved for {model} at {feature_importance_path}")
-    elif hasattr(model, 'coef_'):
-        importances = np.abs(model.coef_).flatten()
+        print(f"Feature importance plot saved for {model_name} at {feature_importance_path}")
+    elif hasattr(estimator, 'coef_'):
+        importances = np.abs(estimator.coef_).flatten()
         indices = np.argsort(importances)[::-1]
         plt.figure()
         plt.title("Feature Coefficients (Importance)")
-        plt.bar(range(X_test.shape[1]), importances[indices], align="center")
-        plt.xticks(range(X_test.shape[1]), [X_test.columns[i] for i in indices], rotation=90)
+        plt.bar(range(len(importances)), importances[indices], align="center")
+        plt.xticks(range(len(importances)), [feature_names[i] for i in indices], rotation=90)
         plt.tight_layout()
         feature_coefficients_path = os.path.join(output_dir, "feature_coefficients.png")
         plt.savefig(feature_coefficients_path)
         plt.close()
-        print(f"Feature coefficients plot saved for {model} at {feature_coefficients_path}")
+        print(f"Feature coefficients plot saved for {model_name} at {feature_coefficients_path}")
     else:
-        print(f"No feature importance or coefficients available for model {model}.")
+        print(f"No feature importance or coefficients available for model {model_name}.")
 
     # Heatmap of Predictions vs True Values
     sns.heatmap(pd.DataFrame({"True": y_test, "Predicted": y_pred}).pivot_table(index='True', columns='Predicted', aggfunc=len, fill_value=0), annot=True, fmt="d", cmap="YlGnBu")
@@ -482,7 +510,8 @@ def evaluate_model(model, X_test, y_test, output_dir):
         'recall': recall_score(y_test, y_pred, zero_division=0),
         'f1_score': f1_score(y_test, y_pred, zero_division=0),
         'roc_auc': roc_auc_score(y_test, y_prob) if y_prob is not None else 'N/A',
-        'confusion_matrix': cm.tolist()
+        'confusion_matrix': cm.tolist(),
+        'classification_report': classification_report(y_test, y_pred, zero_division=0)
     }
     return metrics
 
@@ -523,11 +552,29 @@ def main(input_folder, model_folder, output_folder, selected_file=None):
     X_test = preprocess_test_data(X_test, training_features)
 
     report = []
+    # for model_name, model in models.items():
+    #     model_output_dir = os.path.join(output_folder, model_name)
+    #     metrics = evaluate_model(model, X_test, y_test, model_output_dir)
+    #     report.append((model_name, metrics))
+    #     print(f"Model: {model_name} - Metrics: {metrics}")
     for model_name, model in models.items():
         model_output_dir = os.path.join(output_folder, model_name)
-        metrics = evaluate_model(model, X_test, y_test, model_output_dir)
+        metrics = evaluate_model(model, X_test, y_test, model_output_dir, model_name)
         report.append((model_name, metrics))
-        print(f"Model: {model_name} - Metrics: {metrics}")
+        # Format and print the metrics
+        print(f"\n{'='*40}")
+        print(f"Model: {model_name}")
+        print(f"{'-'*40}")
+        print("Classification Report:")
+        print(metrics['classification_report'])
+        print(f"Accuracy       : {metrics['accuracy']:.4f}")
+        if isinstance(metrics['roc_auc'], str):
+            print(f"ROC AUC        : {metrics['roc_auc']}")
+        else:
+            print(f"ROC AUC        : {metrics['roc_auc']:.4f}")
+        print("Confusion Matrix:")
+        print(metrics['confusion_matrix'])
+        print(f"{'='*40}\n")
 
     report_path = os.path.join(output_folder, 'prediction_report.csv')
     report_df = pd.DataFrame([{**{'Model': m}, **metrics} for m, metrics in report])

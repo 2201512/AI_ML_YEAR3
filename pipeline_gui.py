@@ -12,48 +12,54 @@ class PipelineGUI:
 
         # Frame setup
         main_frame = tk.Frame(root)
-        main_frame.pack(padx=10, pady=10)
+        # main_frame.pack(padx=10, pady=10)
+        self.root.minsize(800, 600)
+        main_frame.pack(fill='both', expand=True)
+        left_frame = tk.Frame(main_frame)
+        left_frame.pack(side='left', fill='both', expand=True, padx=10, pady=10)
+        right_frame = tk.Frame(main_frame)
+        right_frame.pack(side='right', fill='both', expand=True, padx=10, pady=10)
 
         # Folder selectors for each step
-        self.training_data_folder = self.add_folder_selector(main_frame, "Select Training Data Folder:", self.update_file_list)
-        self.cleaned_data_folder = self.add_folder_selector(main_frame, "Select Cleaned Data Folder:", self.update_eda_file_list)
-        self.model_training_folder = self.add_folder_selector(main_frame, "Select Model Training Folder:", self.update_model_training_file_list)
-        self.model_output_folder = self.add_folder_selector(main_frame, "Select Model Output Folder:")
-        self.eda_output_folder = self.add_folder_selector(main_frame, "Select EDA Output Folder:")
+        self.training_data_folder = self.add_folder_selector(left_frame, "Select Training Data Folder:", self.update_file_list)
+        self.cleaned_data_folder = self.add_folder_selector(left_frame, "Select Cleaned Data Folder:", self.update_eda_file_list)
+        self.model_training_folder = self.add_folder_selector(left_frame, "Select Model Training Folder:", self.update_model_training_file_list)
+        self.model_output_folder = self.add_folder_selector(left_frame, "Select Model Output Folder:")
+        self.eda_output_folder = self.add_folder_selector(left_frame, "Select EDA Output Folder:")
 
         # Dropdown for selecting file for cleaning from training data folder
-        self.file_label = tk.Label(main_frame, text="Select File for Data Cleaning:")
+        self.file_label = tk.Label(left_frame, text="Select File for Data Cleaning:")
         self.file_label.pack(anchor="w")
-        self.file_dropdown = ttk.Combobox(main_frame, state="readonly")
+        self.file_dropdown = ttk.Combobox(left_frame, state="readonly")
         self.file_dropdown.pack(fill="x", pady=5)
 
         # Dropdown for selecting file for EDA
-        self.eda_file_label = tk.Label(main_frame, text="Select File for EDA:")
+        self.eda_file_label = tk.Label(left_frame, text="Select File for EDA:")
         self.eda_file_label.pack(anchor="w")
-        self.eda_file_dropdown = ttk.Combobox(main_frame, state="readonly")
+        self.eda_file_dropdown = ttk.Combobox(left_frame, state="readonly")
         self.eda_file_dropdown.pack(fill="x", pady=5)
 
         # Dropdown for selecting file for model training
-        self.model_file_label = tk.Label(main_frame, text="Select Cleaned File for Model Training:")
+        self.model_file_label = tk.Label(left_frame, text="Select Cleaned File for Model Training:")
         self.model_file_label.pack(anchor="w")
-        self.model_file_dropdown = ttk.Combobox(main_frame, state="readonly")
+        self.model_file_dropdown = ttk.Combobox(left_frame, state="readonly")
         self.model_file_dropdown.pack(fill="x", pady=5)
 
         # Dropdown for selecting file for prediction
-        self.prediction_file_label = tk.Label(main_frame, text="Select File for Prediction:")
+        self.prediction_file_label = tk.Label(left_frame, text="Select File for Prediction:")
         self.prediction_file_label.pack(anchor="w")
-        self.prediction_file_dropdown = ttk.Combobox(main_frame, state="readonly")
+        self.prediction_file_dropdown = ttk.Combobox(left_frame, state="readonly")
         self.prediction_file_dropdown.pack(fill="x", pady=5)
 
         # Buttons for each script step
-        self.add_button(main_frame, "Run Data Cleaning", self.run_data_cleaning_thread)
-        self.add_button(main_frame, "Run EDA", self.run_eda_thread)
-        self.add_button(main_frame, "Run Model Training", self.run_model_training_thread)
-        self.add_button(main_frame, "Run Prediction", self.run_prediction_thread)
+        self.add_button(left_frame, "Run Data Cleaning", self.run_data_cleaning_thread)
+        self.add_button(left_frame, "Run EDA", self.run_eda_thread)
+        self.add_button(left_frame, "Run Model Training", self.run_model_training_thread)
+        self.add_button(left_frame, "Run Prediction", self.run_prediction_thread)
 
         # Output box to capture terminal output
-        self.output_text = scrolledtext.ScrolledText(main_frame, wrap=tk.WORD, height=15, width=80)
-        self.output_text.pack(pady=10)
+        self.output_text = scrolledtext.ScrolledText(right_frame, wrap=tk.WORD)
+        self.output_text.pack(fill='both', expand=True)
         # For terminal input
         self.output_text.bind("<Return>", self.on_enter)  # Bind Enter key to capture user input
         self.current_process = None  # Store the current subprocess for user input
@@ -120,14 +126,24 @@ class PipelineGUI:
 
 
     def add_folder_selector(self, frame, label_text, command=None):
-        label = tk.Label(frame, text=label_text)
+        container = tk.Frame(frame)
+        container.pack(fill='x', pady=5)
+
+        label = tk.Label(container, text=label_text)
         label.pack(anchor="w")
+
         folder_path = tk.StringVar()
-        folder_entry = tk.Entry(frame, textvariable=folder_path, width=60)
-        folder_entry.pack(anchor="w", pady=5)
-        browse_button = tk.Button(frame, text="Browse", command=lambda: self.select_folder(folder_path, command))
-        browse_button.pack(anchor="w", pady=5)
+        entry_container = tk.Frame(container)
+        entry_container.pack(fill='x')
+
+        folder_entry = tk.Entry(entry_container, textvariable=folder_path)
+        folder_entry.pack(side='left', fill='x', expand=True)
+
+        browse_button = tk.Button(entry_container, text="Browse", command=lambda: self.select_folder(folder_path, command))
+        browse_button.pack(side='left', padx=5)
+
         return folder_path
+
 
     def browse_folder(self, folder_path_var, update_command=None):
         selected_folder = filedialog.askdirectory()
