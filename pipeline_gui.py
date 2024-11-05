@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, scrolledtext
 import subprocess
 import os
 
@@ -9,8 +9,17 @@ class PipelineGUI:
         self.root = root
         self.root.title("Data Pipeline GUI")
         self.root.geometry("400x300")
+
+        # Copy terminal output to GUI
+        
+
+        # Initialize folder paths
+        self.training_data_folder = None
+        self.cleaned_data_folder = None
+        self.model_output_folder = None
         
         # Directory selection buttons
+        self.create_button("Select Training Data Folder", self.select_training_data_folder)
         self.create_button("Select Cleaned Data Folder", self.select_cleaned_data_folder)
         self.create_button("Select Model Output Folder", self.select_model_output_folder)
         
@@ -32,6 +41,10 @@ class PipelineGUI:
         button.pack(pady=5)
 
     # Directory and file selection functions
+    def select_training_data_folder(self):
+        self.training_data_folder = filedialog.askdirectory()
+        self.status_label.config(text=f"Selected Training Data: {self.training_data_folder}")
+
     def select_cleaned_data_folder(self):
         self.cleaned_data_folder = filedialog.askdirectory()
         self.status_label.config(text=f"Selected Cleaned Data: {self.cleaned_data_folder}")
@@ -46,24 +59,60 @@ class PipelineGUI:
 
     # Run functions for each stage
     def run_data_cleaning(self):
-        self.run_script("clean_data.py", "cleaned_data_folder")
+        if not self.training_data_folder or not self.cleaned_data_folder:
+            messagebox.showwarning("Warning", "Please select both training data and cleaned data folders.")
+            return
+        self.run_script("clean_data.py", self.training_data_folder, self.cleaned_data_folder)
+        # self.run_script("clean_data.py", "cleaned_data_folder")
 
     def run_eda(self):
-        self.run_script("perform_eda.py", "eda_file")
+        if not self.eda_file:
+            messagebox.showwarning("Warning", "Please select an EDA file.")
+            return
+        self.run_script("perform_eda.py", self.eda_file, self.cleaned_data_folder)
+        # self.run_script("perform_eda.py", "eda_file")
 
     def run_model_training(self):
-        self.run_script("model_training.py", "model_output_folder")
+        if not self.cleaned_data_folder or not self.model_output_folder:
+            messagebox.showwarning("Warning", "Please select cleaned data and model output folders.")
+            return
+        # self.run_script("model_training.py", self.cleaned_data_folder, self.model_output_folder)
+        self.run_script("model_training.py", self.cleaned_data_folder, self.model_output_folder, "--model_output")
+        # self.run_script("model_training.py", "model_output_folder")
 
     def run_prediction(self):
-        self.run_script("perform_prediction.py", "model_output_folder")
+        if not self.cleaned_data_folder or not self.model_output_folder:
+            messagebox.showwarning("Warning", "Please select cleaned data and model output folders.")
+            return
+        self.run_script("perform_prediction.py", self.cleaned_data_folder, self.model_output_folder)
+        # self.run_script("perform_prediction.py", "model_output_folder")
 
-    def run_script(self, script_name, folder_name):
+    # def run_script(self, script_name, folder_name):
+    #     try:
+    #         subprocess.run(["python", script_name, "--input_folder", getattr(self, folder_name)], check=True)
+    #         self.status_label.config(text=f"{script_name} completed successfully")
+    #     except subprocess.CalledProcessError:
+    #         messagebox.showerror("Error", f"Failed to run {script_name}")
+    #         self.status_label.config(text=f"Error: {script_name} failed")
+    # Version that takes input and output folders as arguments
+    # def run_script(self, script_name, input_folder, output_folder):
+    #     try:
+    #         subprocess.run(["python", script_name, "--input_folder", input_folder, "--output_folder", output_folder], check=True)
+    #         self.status_label.config(text=f"{script_name} completed successfully")
+    #     except subprocess.CalledProcessError:
+    #         messagebox.showerror("Error", f"Failed to run {script_name}")
+    #         self.status_label.config(text=f"Error: {script_name} failed")
+    def run_script(self, script_name, input_folder, output_folder, folder_arg_name="--output_folder"):
         try:
-            subprocess.run(["python", script_name, "--input_folder", getattr(self, folder_name)], check=True)
+            subprocess.run(
+                ["python", script_name, "--input_folder", input_folder, folder_arg_name, output_folder],
+                check=True
+            )
             self.status_label.config(text=f"{script_name} completed successfully")
         except subprocess.CalledProcessError:
             messagebox.showerror("Error", f"Failed to run {script_name}")
             self.status_label.config(text=f"Error: {script_name} failed")
+
 
 # Initialize the GUI
 root = tk.Tk()
